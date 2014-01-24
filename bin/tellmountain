@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+
+readonly usage=$(cat <<EOF
+  tellmountain: Send a notification to a HipChat room from STDIN
+  See: https://www.hipchat.com/docs/apiv2/method/send_room_notification
+
+  The only requirement is curl.
+
+  tellmountain looks for environment variables:
+    \$HIPCHAT_TOKEN => Your HipChat API Token
+    \$HIPCHAT_ROOM  => The room you want to notify
+
+  Example Usage:
+    \$ echo 'Hey jerks' | tellmountain 
+
+    \$ tellmountain -m 'Hey jerks'
+
+    \$ tellmountain -t TOKEN -r ROOM_ID -m 'Hey jerks'
+        Pass the token and room explicitly
+
+    \$ tellmountain -m 'Hey jerks' -c 'purple' -f 'txt' --notify
+        -c, --color   => The color of the notification
+        -f, --format  => The message format of the notification
+        -n, --notify  => Notify the room
+        See the HipChat docs for the details.
+
+    \$ tellmountain -h
+        -h, --help    => Print usage and exit.
+
+    \$ tellmountain -v
+        -v, --version => Print version and exit.
+
+  Please use responsibly.
+
+EOF)
+
+readonly VERSION='0.1.0'
+
+readonly ERR_MISSING_CURL=2
+readonly ERR_MISSING_TOKEN=3
+readonly ERR_MISSING_ROOM=4
+readonly ERR_MISSING_NOTIFICATION=5
+readonly ERR_CURL_REQUEST=22
+
+MESSAGE=''
+DO_NOTIFY=''
+MESSAGE_COLOR=''
+MESSAGE_FORMAT=''
+
+err_and_abort() {
+  echo "error: $1" >&2
+  exit $2
+}
+
+usage_and_exit() {
+  echo "$usage"
+  exit 0
+}
+
+version_and_exit() {
+  echo "$VERSION"
+  exit 0
+}
+
+construct_url() {
+  echo "https://api.hipchat.com/v2/room/$1/notification"
+}
+
+json_pair() {
+  if [[ -n $2 ]]; then
+    echo "\"$1\": \"$2\","
+  fi
+}
+
+if [ ! `command -v curl` ]; then
+  err_and_abort 'missing curl [http://curl.haxx.se/] on $PATH' $ERR_MISSING_CURL
+fi
+
+if [ ! -t 0 ]; then read MESSAGE; fi
+
+if [ $# -eq 0 ] && [ -z "$MESSAGE" ]; then 
+  echo "tellmountain: try 'tellmountain --help'"
+  exit 1
+fi
+
+while [[ $# > 0 ]]; do
+  arg="$1"
+  shift
+  case "$arg" in
+    -h|--help)
+      usage_and_exit
+      ;;
+    -v|--version)
+      version_and_exit
+      ;;
+    -t|--token)
+      HIPCHAT_TOKEN="$1"
+      shift
+      ;;
+    -r|--room)
+      HIPCHAT_ROOM="$1"
+      shift
+      ;;
+    -c|--color|--colour)
+      MESSAGE_COLOR="$1"
+      shift
+      ;;
+    -m|--message)
+      MESSAGE="$1"
+      shift
+      ;;
+    -n|--notify)
+      DO_NOTIFY=true
+      ;;
+    -f|--format)
+      MESSAGE_FORMAT="$1"
+      shift
+      ;;
+    -*)
+      err_and_abort "Unknown argument: $arg" 1
+      ;;
+    *)
+      ;;
+  esac
+done
+
+if [[ -z $HIPCHAT_TOKEN ]]; then
+  err_and_abort 'missing $HIPCHAT_TOKEN' $ERR_MISSING_TOKEN
+fi
+
+if [[ -z $HIPCHAT_ROOM ]]; then
+  err_and_abort 'missing $HIPCHAT_ROOM' $ERR_MISSING_ROOM
+fi
+
+if [[ -z $MESSAGE ]]; then
+  err_and_abort 'no message given' $ERR_MISSING_NOTIFICATION
+fi
+
+readonly url=$(construct_url $HIPCHAT_ROOM)
+
+readonly json=$(cat <<EOF
+  {
+    $(json_pair 'color' $MESSAGE_COLOR)
+    $(json_pair 'message_format' $MESSAGE_FORMAT)
+    $(if [[ -n $DO_NOTIFY ]]; then 
+      echo '"notify": true,'
+    fi)
+    "message": "$MESSAGE"
+  }
+EOF)
+
+request() {
+  curl -qsS \
+    -H "Authorization: Bearer $HIPCHAT_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "$json" \
+    --url "$url"
+}
+
+request
+

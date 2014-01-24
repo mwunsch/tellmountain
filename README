@@ -1,0 +1,33 @@
+  tellmountain: Send a notification to a HipChat room from STDIN
+  See: https://www.hipchat.com/docs/apiv2/method/send_room_notification
+
+  The only requirement is curl.
+
+  tellmountain looks for environment variables:
+    $HIPCHAT_TOKEN => Your HipChat API Token
+    $HIPCHAT_ROOM  => The room you want to notify
+
+  Example Usage:
+    $ echo 'Hey jerks' | tellmountain 
+
+    $ tellmountain -m 'Hey jerks'
+
+    $ tellmountain -t TOKEN -r ROOM_ID -m 'Hey jerks'
+        Pass the token and room explicitly
+
+    $ tellmountain -m 'Hey jerks' -c 'purple' -f 'txt' --notify
+        -c, --color   => The color of the notification
+        -f, --format  => The message format of the notification
+        -n, --notify  => Notify the room
+        See the HipChat docs for the details.
+
+    $ tellmountain -h
+        -h, --help    => Print usage and exit.
+
+    $ tellmountain -v
+        -v, --version => Print version and exit.
+
+  Please use responsibly.
+
+  Coyright © 2014 Mark Wunsch.
+  
